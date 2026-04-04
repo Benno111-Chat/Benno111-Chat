@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Search Levels</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #0b1220;
+      color: #e5e7eb;
+      font-family: Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .panel {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .panel h1 {
+      margin: 0 0 10px 0;
+      font-size: 20px;
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .input-box {
+      box-sizing: border-box;
+    }
+    .results {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .card:hover {
+      border-color: #2563eb;
+      transform: translateY(-1px);
+    }
+    .small { font-size: 12px; color: #9ca3af; }
+    .status { font-size: 12px; min-height: 16px; }
+    .status.err { color: #f97316; }
+    .status.ok { color: #34d399; }
+    textarea {
+      width: 100%;
+      min-height: 200px;
+      background: #0b1220;
+      border: 1px solid #1f2937;
+      color: #e5e7eb;
+      padding: 10px;
+      border-radius: 8px;
+      box-sizing: border-box;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <h1>Search Levels</h1>
+    <div class="row">
+      <input id="searchInput" class="input-box" type="text" placeholder="Search name, tags, description" style="flex:1; min-width: 240px;">
+      <button id="searchBtn" class="btn">Search</button>
+      <button id="recentBtn" class="btn btn--ghost">Recent</button>
+    </div>
+    <div id="status" class="status"></div>
+    <div id="results" class="results"></div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search || "");
+    const initialQuery = params.get("q") || "";
+    const initialId = params.get("id") || params.get("level") || "";
+
+    const searchInput = document.getElementById("searchInput");
+    const searchBtn = document.getElementById("searchBtn");
+    const recentBtn = document.getElementById("recentBtn");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg || "";
+      statusEl.className = "status";
+      if (cls) statusEl.classList.add(cls);
+    }
+
+    function renderResults(levels) {
+      resultsEl.innerHTML = "";
+      if (!levels || !levels.length) {
+        resultsEl.innerHTML = "<div class='small'>No levels found.</div>";
+        return;
+      }
+      levels.forEach((lvl) => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div><strong>${lvl.name || "Untitled"}</strong></div>
+          <div class="small">#${lvl.id} • Rating: ${lvl.rating ?? 0}</div>
+          <div class="small">${lvl.tags || ""}</div>
+          <div class="small">${lvl.description || ""}</div>
+        `;
+        card.addEventListener("click", () => {
+          window.open("/levels/?id=" + encodeURIComponent(lvl.id), "_blank");
+        });
+        resultsEl.appendChild(card);
+      });
+    }
+
+    async function doSearch() {
+      const q = searchInput.value.trim();
+      if (!q) {
+        setStatus("Enter a search term", "err");
+        return;
+      }
+      setStatus("Searching...", "");
+      try {
+        const res = await fetch("/api/df/levels/search?q=" + encodeURIComponent(q));
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success) {
+          setStatus(body.error || "Search failed", "err");
+          return;
+        }
+        renderResults(body.levels || []);
+        setStatus(`Found ${body.levels?.length || 0} level(s)`, "");
+      } catch (_) {
+        setStatus("Network error", "err");
+      }
+    }
+
+    async function loadRecent() {
+      setStatus("Loading recent...", "");
+      try {
+        const res = await fetch("/api/df/levels?limit=20");
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success) {
+          setStatus(body.error || "Failed to load", "err");
+          return;
+        }
+        renderResults(body.levels || []);
+        setStatus(`Loaded ${body.levels?.length || 0} recent level(s)`, "");
+      } catch (_) {
+        setStatus("Network error", "err");
+      }
+    }
+
+    searchBtn.addEventListener("click", doSearch);
+    recentBtn.addEventListener("click", loadRecent);
+    searchInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
+
+    if (initialQuery) {
+      searchInput.value = initialQuery;
+      doSearch();
+    } else {
+      loadRecent();
+    }
+    // If an id is provided, open main levels page with it.
+    if (initialId) {
+      window.open("/levels/?id=" + encodeURIComponent(initialId), "_blank");
+    }
+  </script>
+</body>
+</html>

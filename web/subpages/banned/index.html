@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Banned</title>
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body>
+
+<div class="app-root">
+  <h1 class="page-title">You Have Been Banned</h1>
+
+  <div class="banned-layout">
+    <div class="banned-reason center-text" id="banReason">
+      bann reason
+    </div>
+
+    <div class="spacer-24"></div>
+
+    <button class="btn btn--wide btn--center" id="appealBtn">Apeal...</button>
+    <div class="spacer-16"></div>
+    <button class="btn btn--wide btn--center" id="logoutBtn">Log Out...</button>
+    <div class="spacer-16"></div>
+    <button class="btn btn--wide btn--center btn--ghost" id="banInfoBtn">Ban Info...</button>
+  </div>
+
+  <div class="side-rail"></div>
+  <div class="home-button" onclick="window.location.href='/'">
+    <div class="home-button-icon"></div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const reasonParam = params.get("reason");
+const savedReason = localStorage.getItem("banReason");
+const activeReason = reasonParam || savedReason || "You have been banned from Benno111 Chat.";
+document.getElementById("banReason").textContent = activeReason;
+localStorage.setItem("banReason", activeReason);
+const username = localStorage.getItem("username") || params.get("user") || "Unknown user";
+localStorage.setItem("banUser", username);
+
+document.getElementById("appealBtn").onclick = () => {
+  window.location.href = "/appeal/";
+};
+document.getElementById("logoutBtn").onclick = async () => {
+  const recentAccounts = localStorage.getItem("recentAccounts");
+  const token = localStorage.getItem("token");
+  try {
+    if (token) {
+      await fetch("/api/logout", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token },
+      });
+    }
+  } catch (_) {}
+  localStorage.clear();
+  if (recentAccounts !== null) {
+    localStorage.setItem("recentAccounts", recentAccounts);
+  }
+  window.location.href = "/";
+};
+document.getElementById("banInfoBtn").onclick = () => {
+  const query = new URLSearchParams({
+    reason: activeReason,
+    user: username,
+  });
+  window.location.href = "/ban_info/?" + query.toString();
+};
+
+const trackedUser = username || localStorage.getItem("banUser") || "";
+const authToken = localStorage.getItem("token") || "";
+let banStatusTimer = null;
+let autoLoginTriggered = false;
+
+async function attemptAutoLogin() {
+  if (autoLoginTriggered) return;
+  autoLoginTriggered = true;
+  if (banStatusTimer) {
+    clearInterval(banStatusTimer);
+    banStatusTimer = null;
+  }
+  window.location.href = "/";
+}
+
+async function checkBanStatus() {
+  if (!trackedUser && !authToken) return;
+  const query = trackedUser
+    ? "?username=" + encodeURIComponent(trackedUser)
+    : "";
+  const opts = {};
+  if (authToken) {
+    opts.headers = { Authorization: "Bearer " + authToken };
+  }
+  try {
+    const res = await fetch("/api/banStatus" + query, opts);
+    if (!res.ok) return;
+    const data = await res.json().catch(() => null);
+    if (!data || data.banned) return;
+    attemptAutoLogin();
+  } catch (err) {
+    console.warn("Failed to check ban status", err);
+  }
+}
+
+if (trackedUser || authToken) {
+  checkBanStatus();
+  banStatusTimer = setInterval(checkBanStatus, 8000);
+}
+</script>
+
+</body>
+</html>

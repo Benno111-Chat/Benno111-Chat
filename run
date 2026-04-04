@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Install dependencies declared in package.json/package-lock.json.
+# Use npm ci for clean installs, npm install to pick up new deps without wiping node_modules.
+if [[ ! -d node_modules ]]; then
+  if [[ -f package-lock.json ]]; then
+    npm ci
+  else
+    npm install
+  fi
+else
+  npm install
+fi
+
+node server/server.js

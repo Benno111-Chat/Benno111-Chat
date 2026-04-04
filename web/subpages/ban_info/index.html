@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Benno111 Chat – Ban Info</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body class="auth-body">
+
+<div class="auth-root">
+  <div class="auth-card auth-card--wide">
+    <div class="auth-lang" style="margin-bottom: 8px;">
+      <label class="auth-label" for="languageSelect">Language</label>
+      <select id="languageSelect" class="input-box auth-input auth-lang__select">
+        <option value="en">English</option>
+        <option value="es">Español</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+      </select>
+    </div>
+    <h1 class="auth-title" id="banTitle">You Are Banned!</h1>
+    <p class="auth-text" id="banIntro">
+      Bans are issued when users violate the Terms of Service or community guidelines. Common reasons include harassment, spam, or repeated disruptive behavior.
+    </p>
+    <p class="auth-text">
+      <strong id="accountLabel">Account:</strong> <span id="banUserDisplay">Loading...</span>
+    </p>
+    <p class="auth-text">
+      <strong id="reasonLabel">Ban Reason:</strong>
+    </p>
+    <div class="auth-text auth-text--emphasis" id="banReasonDisplay">
+      Loading reason...
+    </div>
+    <p class="auth-text" id="banHelp">
+      If you believe the ban was issued in error, you can submit an appeal using the button below. Appeals should include any relevant details for the moderators to review.
+    </p>
+    <div class="auth-buttons">
+      <button class="btn btn--wide" id="appealBtn" onclick="window.location.href='/appeal/'">Submit Appeal</button>
+      <button class="btn btn--wide btn--ghost" id="loginBtn" onclick="window.location.href='/'">Back to Login</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const reasonParam = params.get("reason");
+const userParam = params.get("user");
+const storedReason = localStorage.getItem("banReason");
+const storedUser = localStorage.getItem("banUser");
+const languageSelect = document.getElementById("languageSelect");
+function cleanReason(text) {
+  return (text || "")
+    .replace(/^Report reason:\s*/i, "")
+    .replace(/^Ban reason:\s*/i, "")
+    .trim();
+}
+const reason =
+  cleanReason(reasonParam) ||
+  cleanReason(storedReason) ||
+  "No reason was provided. Please contact the moderators if this is unexpected.";
+const userName = userParam || storedUser || "Unknown user";
+document.getElementById("banReasonDisplay").textContent = reason;
+document.getElementById("banUserDisplay").textContent = userName;
+
+const trackedUser = userParam || storedUser || "";
+const authToken = localStorage.getItem("token") || "";
+
+const banTranslations = {
+  en: {
+    title: "You Are Banned!",
+    intro: "Bans are issued when users violate the Terms of Service or community guidelines. Common reasons include harassment, spam, or repeated disruptive behavior.",
+    account: "Account:",
+    reason: "Ban Reason:",
+    help: "If you believe the ban was issued in error, you can submit an appeal using the button below. Appeals should include any relevant details for the moderators to review.",
+    appeal: "Submit Appeal",
+    login: "Back to Login",
+  },
+  es: {
+    title: "¡Estás baneado!",
+    intro: "Los baneos se aplican cuando se violan los Términos del Servicio o las normas comunitarias. Las razones comunes incluyen acoso, spam o comportamiento disruptivo repetido.",
+    account: "Cuenta:",
+    reason: "Razón del baneo:",
+    help: "Si crees que el baneo es un error, puedes enviar una apelación con el botón de abajo. Incluye los detalles relevantes para que los moderadores los revisen.",
+    appeal: "Enviar apelación",
+    login: "Volver al inicio",
+  },
+  fr: {
+    title: "Vous êtes banni !",
+    intro: "Les bans sont appliqués quand les Conditions d'utilisation ou les règles communautaires sont violées. Les raisons courantes incluent le harcèlement, le spam ou des comportements perturbateurs répétés.",
+    account: "Compte :",
+    reason: "Raison du ban :",
+    help: "Si vous pensez que ce ban est une erreur, vous pouvez soumettre un appel via le bouton ci-dessous. Ajoutez des détails pertinents pour que les modérateurs puissent examiner.",
+    appeal: "Soumettre un appel",
+    login: "Retour à la connexion",
+  },
+  de: {
+    title: "Du bist gesperrt!",
+    intro: "Sperren erfolgen bei Verstößen gegen die Nutzungsbedingungen oder Community-Richtlinien. Häufige Gründe sind Belästigung, Spam oder wiederholt störendes Verhalten.",
+    account: "Konto:",
+    reason: "Sperrgrund:",
+    help: "Wenn du glaubst, dass die Sperre ein Fehler ist, kannst du über die Schaltfläche unten Einspruch einlegen. Bitte gib relevante Details für die Moderatoren an.",
+    appeal: "Einspruch einreichen",
+    login: "Zurück zum Login",
+  },
+};
+let lang = (localStorage.getItem("preferredLanguage") || "en").toLowerCase();
+let t = banTranslations[lang] || banTranslations.en;
+function applyBanTranslations() {
+  t = banTranslations[lang] || banTranslations.en;
+  document.documentElement.lang = lang;
+  const titleEl = document.getElementById("banTitle");
+  const introEl = document.getElementById("banIntro");
+  const accountLabel = document.getElementById("accountLabel");
+  const reasonLabel = document.getElementById("reasonLabel");
+  const helpEl = document.getElementById("banHelp");
+  const appealBtn = document.getElementById("appealBtn");
+  const loginBtn = document.getElementById("loginBtn");
+  const langLabel = document.querySelector('label[for="languageSelect"]');
+  if (titleEl) titleEl.textContent = t.title;
+  if (introEl) introEl.textContent = t.intro;
+  if (accountLabel) accountLabel.textContent = t.account;
+  if (reasonLabel) reasonLabel.textContent = t.reason;
+  if (helpEl) helpEl.textContent = t.help;
+  if (appealBtn) appealBtn.textContent = t.appeal;
+  if (loginBtn) loginBtn.textContent = t.login;
+  if (languageSelect) languageSelect.value = lang;
+  if (langLabel) langLabel.textContent = "Language";
+}
+applyBanTranslations();
+
+if (languageSelect) {
+  languageSelect.addEventListener("change", function () {
+    lang = (languageSelect.value || "en").toLowerCase();
+    localStorage.setItem("preferredLanguage", lang);
+    applyBanTranslations();
+  });
+}
+</script>
+
+</body>
+</html>

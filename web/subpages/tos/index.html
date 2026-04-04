@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Benno111 Chat – Terms of Service</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body class="auth-body">
+
+<div class="auth-root">
+  <div class="auth-card auth-card--wide">
+    <h1 class="auth-title" id="tosTitle">Terms of Service</h1>
+    <p class="auth-text" id="tosIntro">
+      By using Benno111 Chat you agree to follow these rules:
+    </p>
+    <ul class="auth-list" id="tosList">
+      <li data-i18n="ruleRespect">Respect other users. Harassment, hate speech, or threats are not tolerated.</li>
+      <li data-i18n="ruleSpam">No spam, scams, or malicious links.</li>
+      <li data-i18n="ruleImpersonate">Do not impersonate staff or other users.</li>
+      <li data-i18n="ruleModeration">Moderators may take action (warnings, bans) at their discretion.</li>
+    </ul>
+    <p class="auth-text" id="tosOutro">
+      Violations may result in loss of access. Appeals are available for bans via the appeal page.
+    </p>
+    <div class="auth-buttons">
+      <button class="btn btn--wide" id="backBtn" onclick="window.history.back()">Go Back</button>
+      <button class="btn btn--wide btn--ghost" id="loginBtn" onclick="window.location.href='/'">Login</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const lang = (localStorage.getItem("preferredLanguage") || "en").toLowerCase();
+const translations = {
+  en: {
+    title: "Terms of Service",
+    intro: "By using Benno111 Chat you agree to follow these rules:",
+    ruleRespect: "Respect other users. Harassment, hate speech, or threats are not tolerated.",
+    ruleSpam: "No spam, scams, or malicious links.",
+    ruleImpersonate: "Do not impersonate staff or other users.",
+    ruleModeration: "Moderators may take action (warnings, bans) at their discretion.",
+    outro: "Violations may result in loss of access. Appeals are available for bans via the appeal page.",
+    back: "Go Back",
+    login: "Login",
+  },
+  es: {
+    title: "Términos del servicio",
+    intro: "Al usar Benno111 Chat aceptas seguir estas reglas:",
+    ruleRespect: "Respeta a otros usuarios. No se tolera acoso, discurso de odio o amenazas.",
+    ruleSpam: "Nada de spam, estafas o enlaces maliciosos.",
+    ruleImpersonate: "No suplantes a personal o a otros usuarios.",
+    ruleModeration: "Los moderadores pueden actuar (avisos, baneos) a su discreción.",
+    outro: "Las violaciones pueden resultar en pérdida de acceso. Las apelaciones están disponibles en la página de apelación.",
+    back: "Regresar",
+    login: "Iniciar sesión",
+  },
+  fr: {
+    title: "Conditions d'utilisation",
+    intro: "En utilisant Benno111 Chat, vous acceptez de suivre ces règles :",
+    ruleRespect: "Respectez les autres utilisateurs. Aucun harcèlement, discours haineux ou menaces n'est toléré.",
+    ruleSpam: "Pas de spam, d'arnaques ou de liens malveillants.",
+    ruleImpersonate: "N'usurpez pas l'identité du personnel ou d'autres utilisateurs.",
+    ruleModeration: "Les modérateurs peuvent agir (avertissements, bans) à leur discrétion.",
+    outro: "Les violations peuvent entraîner une perte d'accès. Les appels sont possibles via la page d'appel.",
+    back: "Retour",
+    login: "Connexion",
+  },
+  de: {
+    title: "Nutzungsbedingungen",
+    intro: "Durch die Nutzung von Benno111 Chat stimmst du diesen Regeln zu:",
+    ruleRespect: "Respektiere andere Nutzer. Belästigung, Hassrede oder Drohungen werden nicht toleriert.",
+    ruleSpam: "Kein Spam, keine Betrugsversuche oder schädlichen Links.",
+    ruleImpersonate: "Gib dich nicht als Mitarbeitende oder andere Nutzer aus.",
+    ruleModeration: "Moderatoren können nach Ermessen Maßnahmen ergreifen (Verwarnungen, Sperren).",
+    outro: "Verstöße können zum Verlust des Zugangs führen. Einsprüche sind über die Einspruchsseite möglich.",
+    back: "Zurück",
+    login: "Anmelden",
+  },
+};
+const t = translations[lang] || translations.en;
+const el = (id) => document.getElementById(id);
+if (el("tosTitle")) el("tosTitle").textContent = t.title;
+if (el("tosIntro")) el("tosIntro").textContent = t.intro;
+if (el("tosOutro")) el("tosOutro").textContent = t.outro;
+if (el("backBtn")) el("backBtn").textContent = t.back;
+if (el("loginBtn")) el("loginBtn").textContent = t.login;
+const list = document.querySelectorAll("#tosList [data-i18n]");
+list.forEach((item) => {
+  const key = item.getAttribute("data-i18n");
+  if (t[key]) item.textContent = t[key];
+});
+document.documentElement.lang = lang;
+</script>
+
+</body>
+</html>

@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Benno111 Chat – Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body class="auth-body">
+
+<div class="auth-root">
+  <div class="auth-card">
+    <h1 class="auth-title">Benno111 Chat</h1>
+
+    <div class="auth-lang">
+      <label class="auth-label" for="languageSelect">Language</label>
+      <select id="languageSelect" class="input-box auth-input auth-lang__select">
+        <option value="en">English</option>
+        <option value="es">Español</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+      </select>
+    </div>
+
+    <div class="auth-tabs" id="authTabs" hidden>
+      <button type="button" class="auth-tab" id="tabRecentBtn" data-tab="recent" aria-selected="false">Recent Accounts</button>
+      <button type="button" class="auth-tab auth-tab--active" id="tabLoginBtn" data-tab="login" aria-selected="true">Login / Register</button>
+    </div>
+
+    <div class="auth-panels" id="authPanels">
+      <div class="auth-panel auth-panel--recent" id="recentPanel" hidden>
+        <div class="recent-accounts" id="recentAccounts" hidden>
+          <div class="recent-accounts__header">
+            <span>Recent Accounts</span>
+            <button type="button" class="recent-accounts__clear" id="clearRecentAccountsBtn">Clear</button>
+          </div>
+          <div class="recent-accounts__list" id="recentAccountsList"></div>
+        </div>
+      </div>
+
+      <div class="auth-panel auth-panel--form auth-panel--active" id="formPanel">
+        <label class="auth-label">Username</label>
+        <input id="usernameInput" class="input-box auth-input" autocomplete="username">
+
+        <label class="auth-label">Email</label>
+        <input id="emailInput" class="input-box auth-input" type="email" autocomplete="email">
+
+        <label class="auth-label">Password</label>
+        <input id="passwordInput" class="input-box auth-input" type="password" autocomplete="current-password">
+
+        <div class="auth-buttons">
+          <button id="loginBtn" class="btn btn--wide">Login</button>
+          <button id="registerBtn" class="btn btn--wide btn--ghost">Register</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="authStatus" class="auth-status"></div>
+    <div class="auth-links">
+      <a href="/reset/">Forgot password?</a>
+      <a href="/tos/">Terms of Service</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const statusBox = document.getElementById("authStatus");
+const userInput = document.getElementById("usernameInput");
+const passInput = document.getElementById("passwordInput");
+const emailInput = document.getElementById("emailInput");
+const loginBtn = document.getElementById("loginBtn");
+const registerBtn = document.getElementById("registerBtn");
+const authPanels = document.getElementById("authPanels");
+const recentPanel = document.getElementById("recentPanel");
+const formPanel = document.getElementById("formPanel");
+const authTabs = document.getElementById("authTabs");
+const tabRecentBtn = document.getElementById("tabRecentBtn");
+const tabLoginBtn = document.getElementById("tabLoginBtn");
+const recentAccountsSection = document.getElementById("recentAccounts");
+const recentAccountsList = document.getElementById("recentAccountsList");
+const clearRecentBtn = document.getElementById("clearRecentAccountsBtn");
+const languageSelect = document.getElementById("languageSelect");
+const accountSummaryCache = new Map();
+const MAX_RECENT_ACCOUNTS = 5;
+const translations = {
+  en: {
+    recentAccounts: "Recent Accounts",
+    clear: "Clear",
+    username: "Username",
+    email: "Email",
+    password: "Password",
+    login: "Login",
+    register: "Register",
+    forgotPassword: "Forgot password?",
+    tos: "Terms of Service",
+    checkingBan: "Checking ban status...",
+    instantOn: "Instant login on",
+    instantOff: "Instant login off",
+    instantUnavailable: "Instant Login Unavailable",
+    instantLogin: "Instant Login",
+    instantDisabled: "Instant login disabled for ",
+    instantEnabled:
+      "Instant login enabled. Sign in once to store the password for ",
+    instantNotFound: "Recent account not found",
+    instantNoPassword: "No saved password for ",
+    instantNoEmail: "No saved email for ",
+    instantDisabledMsg: "Instant login is disabled for ",
+    instantStatusUnavailable: "Status unavailable",
+    banned: "Account banned.",
+    muted: "Muted",
+    mutedUntil: "Muted until ",
+    enterAll: "Enter username, email, and password",
+    enterValidEmail: "Enter a valid email",
+    loginFailed: "Login failed",
+    registerFailed: "Registration failed",
+    registered: "Registered! Sending login code...",
+    networkError: "Network error",
+    languageLabel: "Language",
+  },
+  es: {
+    recentAccounts: "Cuentas recientes",
+    clear: "Limpiar",
+    username: "Usuario",
+    email: "Correo",
+    password: "Contraseña",
+    login: "Iniciar sesión",
+    register: "Registrar",
+    forgotPassword: "¿Olvidaste la contraseña?",
+    tos: "Términos del servicio",
+    checkingBan: "Comprobando estado...",
+    instantOn: "Inicio instantáneo activado",
+    instantOff: "Inicio instantáneo desactivado",
+    instantUnavailable: "Inicio instantáneo no disponible",
+    instantLogin: "Inicio instantáneo",
+    instantDisabled: "Inicio instantáneo desactivado para ",
+    instantEnabled: "Inicio instantáneo activado. Inicia sesión una vez para guardar la contraseña de ",
+    instantNotFound: "Cuenta reciente no encontrada",
+    instantNoPassword: "No hay contraseña guardada para ",
+    instantNoEmail: "No hay correo guardado para ",
+    instantDisabledMsg: "El inicio instantáneo está desactivado para ",
+    instantStatusUnavailable: "Estado no disponible",
+    banned: "Cuenta baneada.",
+    muted: "Silenciado",
+    mutedUntil: "Silenciado hasta ",
+    enterAll: "Ingresa usuario, correo y contraseña",
+    enterValidEmail: "Ingresa un correo válido",
+    loginFailed: "Error al iniciar sesión",
+    registerFailed: "Error al registrar",
+    registered: "Registrado. Enviando código de acceso...",
+    networkError: "Error de red",
+    languageLabel: "Idioma",
+  },
+  fr: {
+    recentAccounts: "Comptes récents",
+    clear: "Effacer",
+    username: "Nom d'utilisateur",
+    email: "E-mail",
+    password: "Mot de passe",
+    login: "Connexion",
+    register: "Inscription",
+    forgotPassword: "Mot de passe oublié ?",
+    tos: "Conditions d'utilisation",
+    checkingBan: "Vérification du statut...",
+    instantOn: "Connexion instantanée activée",
+    instantOff: "Connexion instantanée désactivée",
+    instantUnavailable: "Connexion instantanée indisponible",
+    instantLogin: "Connexion instantanée",
+    instantDisabled: "Connexion instantanée désactivée pour ",
+    instantEnabled: "Connexion instantanée activée. Connectez-vous une fois pour enregistrer le mot de passe de ",
+    instantNotFound: "Compte récent introuvable",
+    instantNoPassword: "Aucun mot de passe enregistré pour ",
+    instantNoEmail: "Aucun email enregistré pour ",
+    instantDisabledMsg: "La connexion instantanée est désactivée pour ",
+    instantStatusUnavailable: "Statut indisponible",
+    banned: "Compte banni.",
+    muted: "Muet",
+    mutedUntil: "Muet jusqu'à ",
+    enterAll: "Entrez utilisateur, email et mot de passe",
+    enterValidEmail: "Entrez un email valide",
+    loginFailed: "Échec de connexion",
+    registerFailed: "Échec de l'inscription",
+    registered: "Inscrit ! Envoi du code...",
+    networkError: "Erreur réseau",
+    languageLabel: "Langue",
+  },
+  de: {
+    recentAccounts: "Letzte Konten",
+    clear: "Löschen",
+    username: "Nutzername",
+    email: "E-Mail",
+    password: "Passwort",
+    login: "Anmelden",
+    register: "Registrieren",
+    forgotPassword: "Passwort vergessen?",
+    tos: "Nutzungsbedingungen",
+    checkingBan: "Sperrstatus wird geprüft...",
+    instantOn: "Sofortanmeldung an",
+    instantOff: "Sofortanmeldung aus",
+    instantUnavailable: "Sofortanmeldung nicht verfügbar",
+    instantLogin: "Sofortanmeldung",
+    instantDisabled: "Sofortanmeldung deaktiviert für ",
+    instantEnabled: "Sofortanmeldung aktiviert. Einmal anmelden, um das Passwort zu speichern für ",
+    instantNotFound: "Letztes Konto nicht gefunden",
+    instantNoPassword: "Kein Passwort gespeichert für ",
+    instantNoEmail: "Keine E-Mail gespeichert für ",
+    instantDisabledMsg: "Sofortanmeldung ist deaktiviert für ",
+    instantStatusUnavailable: "Status nicht verfügbar",
+    banned: "Konto gesperrt.",
+    muted: "Stumm",
+    mutedUntil: "Stumm bis ",
+    enterAll: "Benutzername, E-Mail und Passwort eingeben",
+    enterValidEmail: "Gültige E-Mail eingeben",
+    loginFailed: "Anmeldung fehlgeschlagen",
+    registerFailed: "Registrierung fehlgeschlagen",
+    registered: "Registriert! Login-Code wird gesendet...",
+    networkError: "Netzwerkfehler",
+    languageLabel: "Sprache",
+  },
+};
+let authLanguage = localStorage.getItem("preferredLanguage") || "en";
+
+function t(key, fallback) {
+  const pack = translations[authLanguage] || translations.en;
+  return pack[key] || translations.en[key] || fallback || key;
+}
+
+function applyAuthTranslations() {
+  const usernameLabel = document.querySelector('label[for="usernameInput"]') || document.querySelector(".auth-label:nth-of-type(1)");
+  const emailLabel = document.querySelector('label[for="emailInput"]') || document.querySelector(".auth-label:nth-of-type(2)");
+  const passwordLabel = document.querySelector('label[for="passwordInput"]') || document.querySelector(".auth-label:nth-of-type(3)");
+  if (usernameLabel) usernameLabel.textContent = t("username", "Username");
+  if (emailLabel) emailLabel.textContent = t("email", "Email");
+  if (passwordLabel) passwordLabel.textContent = t("password", "Password");
+  if (loginBtn) loginBtn.textContent = t("login", "Login");
+  if (registerBtn) registerBtn.textContent = t("register", "Register");
+  if (tabRecentBtn) tabRecentBtn.textContent = t("recentAccounts", "Recent Accounts");
+  if (tabLoginBtn) tabLoginBtn.textContent = t("login", "Login");
+  const authLinks = document.querySelectorAll(".auth-links a");
+  if (authLinks[0]) authLinks[0].textContent = t("forgotPassword", "Forgot password?");
+  if (authLinks[1]) authLinks[1].textContent = t("tos", "Terms of Service");
+  const recentHeader = document.querySelector(".recent-accounts__header span");
+  if (recentHeader) recentHeader.textContent = t("recentAccounts", "Recent Accounts");
+  const clearBtn = document.getElementById("clearRecentAccountsBtn");
+  if (clearBtn) clearBtn.textContent = t("clear", "Clear");
+  const langLabel = document.querySelector('label[for="languageSelect"]');
+  if (langLabel) langLabel.textContent = t("languageLabel", "Language");
+  if (languageSelect) languageSelect.value = authLanguage;
+}
+
+function setAuthLanguage(lang) {
+  authLanguage = (lang || "en").toLowerCase();
+  localStorage.setItem("preferredLanguage", authLanguage);
+  document.documentElement.lang = authLanguage;
+  applyAuthTranslations();
+}
+let activeTab = "login";
+
+function updateRecentLayout(hasRecent) {
+  if (!authPanels || !recentPanel) return;
+  recentPanel.hidden = !hasRecent || activeTab !== "recent";
+  if (formPanel) formPanel.hidden = activeTab !== "login";
+  if (authTabs) {
+    authTabs.hidden = !hasRecent;
+    authTabs.style.display = hasRecent ? "flex" : "none";
+  }
+  if (tabRecentBtn) tabRecentBtn.disabled = !hasRecent;
+  if (!hasRecent) setActiveTab("login");
+}
+
+function setActiveTab(tab) {
+  const hasRecent = !recentAccountsSection?.hidden;
+  activeTab = tab === "recent" && hasRecent ? "recent" : "login";
+  if (tabLoginBtn) {
+    tabLoginBtn.classList.toggle("auth-tab--active", activeTab === "login");
+    tabLoginBtn.setAttribute("aria-selected", activeTab === "login" ? "true" : "false");
+  }
+  if (tabRecentBtn) {
+    tabRecentBtn.classList.toggle("auth-tab--active", activeTab === "recent");
+    tabRecentBtn.setAttribute("aria-selected", activeTab === "recent" ? "true" : "false");
+  }
+  if (formPanel) formPanel.hidden = activeTab !== "login";
+  if (recentPanel) recentPanel.hidden = activeTab !== "recent" || !hasRecent;
+  if (authPanels) {
+    authPanels.classList.toggle("auth-panels--with-recent", hasRecent && activeTab === "recent");
+  }
+}
+
+if (tabLoginBtn) {
+  tabLoginBtn.addEventListener("click", () => setActiveTab("login"));
+}
+if (tabRecentBtn) {
+  tabRecentBtn.addEventListener("click", () => setActiveTab("recent"));
+}
+if (languageSelect) {
+  languageSelect.addEventListener("change", () => setAuthLanguage(languageSelect.value));
+  setAuthLanguage(languageSelect.value || authLanguage);
+}
+
+function isValidEmail(email) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((email || "").trim());
+}
+
+function normalizeRecentEntry(entry) {
+  if (typeof entry === "string") {
+    return { username: entry, password: "", email: "", instant: false };
+  }
+  if (!entry || typeof entry !== "object") return null;
+  const username =
+    typeof entry.username === "string"
+      ? entry.username
+      : typeof entry.name === "string"
+      ? entry.name
+      : "";
+  if (!username) return null;
+  const password = typeof entry.password === "string" ? entry.password : "";
+  const email = typeof entry.email === "string" ? entry.email : "";
+  const instant =
+    entry.instant === false ? false : entry.instant === true ? true : !!password;
+  return { username, password, email, instant };
+}
+
+function getRecentAccounts() {
+  const raw = localStorage.getItem("recentAccounts");
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map(normalizeRecentEntry).filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+
+function setRecentAccounts(list) {
+  const normalized = (list || [])
+    .map(normalizeRecentEntry)
+    .filter(Boolean)
+    .map((entry) => {
+      if (entry.instant === false) entry.password = "";
+      return entry;
+    })
+    .slice(0, MAX_RECENT_ACCOUNTS);
+  localStorage.setItem("recentAccounts", JSON.stringify(normalized));
+}
+
+function saveRecentAccount(name, password, email) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return;
+  const list = getRecentAccounts();
+  const existingIndex = list.findIndex((entry) => entry.username === trimmed);
+  let entry;
+  if (existingIndex !== -1) {
+    entry = list.splice(existingIndex, 1)[0];
+  } else {
+    entry = { username: trimmed, password: "", instant: true };
+  }
+  if (entry.instant === false) {
+    entry.password = "";
+  } else if (password) {
+    entry.password = password;
+    entry.instant = true;
+  } else if (!entry.password) {
+    entry.instant = false;
+  }
+  entry.email = typeof email === "string" ? email.trim() : entry.email || "";
+  list.unshift(entry);
+  setRecentAccounts(list);
+  renderRecentAccounts();
+}
+
+function deleteRecentAccount(name) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return;
+  const filtered = getRecentAccounts().filter(
+    (entry) => entry.username !== trimmed
+  );
+  setRecentAccounts(filtered);
+  renderRecentAccounts();
+}
+
+function clearRecentAccounts() {
+  setRecentAccounts([]);
+  accountSummaryCache.clear();
+  renderRecentAccounts();
+}
+
+function findRecentAccount(name) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return null;
+  return getRecentAccounts().find((entry) => entry.username === trimmed) || null;
+}
+
+function setInstantLoginPreference(name, enabled) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return;
+  const list = getRecentAccounts();
+  const idx = list.findIndex((entry) => entry.username === trimmed);
+  if (idx === -1) return;
+  list[idx].instant = !!enabled;
+  if (!enabled) {
+    list[idx].password = "";
+    setStatus(t("instantDisabled", "Instant login disabled for ") + trimmed);
+  } else if (!list[idx].password) {
+    setStatus(t("instantEnabled", "Instant login enabled. Sign in once to store the password for ") + trimmed + ".");
+  }
+  setRecentAccounts(list);
+  renderRecentAccounts();
+}
+
+async function performInstantLogin(name) {
+  const entry = findRecentAccount(name);
+  if (!entry) {
+    setStatus(t("instantNotFound", "Recent account not found"), true);
+    return;
+  }
+  if (entry.instant === false) {
+    setStatus(t("instantDisabledMsg", "Instant login is disabled for ") + entry.username, true);
+    return;
+  }
+  if (!entry.password) {
+    setStatus(t("instantNoPassword", "No saved password for ") + entry.username + ".", true);
+    return;
+  }
+  if (!entry.email) {
+    setStatus(t("instantNoEmail", "No saved email for ") + entry.username + ".", true);
+    return;
+  }
+  userInput.value = entry.username;
+  passInput.value = entry.password;
+  emailInput.value = entry.email;
+  await doLogin();
+}
+
+function renderRecentAccounts() {
+  if (!recentAccountsSection || !recentAccountsList) return;
+  const list = getRecentAccounts();
+  recentAccountsList.innerHTML = "";
+  if (!list.length) {
+    recentAccountsSection.hidden = true;
+    if (authTabs) authTabs.hidden = true;
+    if (tabRecentBtn) tabRecentBtn.disabled = true;
+    setActiveTab("login");
+    updateRecentLayout(false);
+    return;
+  }
+  recentAccountsSection.hidden = false;
+  if (authTabs) {
+    authTabs.hidden = false;
+    authTabs.style.display = "flex";
+  }
+  if (tabRecentBtn) tabRecentBtn.disabled = false;
+  setActiveTab("recent");
+  updateRecentLayout(true);
+  list.forEach((entry) => {
+    const name = entry.username;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "recent-account-item";
+    btn.dataset.username = name;
+
+    const avatar = document.createElement("div");
+    avatar.className = "recent-account-item__avatar";
+    avatar.style.backgroundImage = `url("/avatars/${encodeURIComponent(name)}.png")`;
+
+    const meta = document.createElement("div");
+    meta.className = "recent-account-item__meta";
+
+    const nameLabel = document.createElement("div");
+    nameLabel.className = "recent-account-item__name";
+    nameLabel.textContent = name;
+
+    const banLine = document.createElement("div");
+    banLine.className = "recent-account-item__status recent-account-item__status--ban";
+    banLine.textContent = t("checkingBan", "Checking ban status...");
+
+    const muteLine = document.createElement("div");
+    muteLine.className = "recent-account-item__status recent-account-item__status--mute";
+    muteLine.textContent = "";
+
+    const controls = document.createElement("div");
+    controls.className = "recent-account-item__controls";
+
+    const instantBtn = document.createElement("button");
+    instantBtn.type = "button";
+    instantBtn.className = "recent-account-item__instant-btn";
+    updateInstantButtonState(instantBtn, entry);
+    instantBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      performInstantLogin(name).catch(() => {});
+    });
+
+    const toggleLabel = document.createElement("label");
+    toggleLabel.className = "recent-account-item__toggle";
+    const toggleInput = document.createElement("input");
+    toggleInput.type = "checkbox";
+    toggleInput.checked = entry.instant !== false;
+    toggleInput.addEventListener("click", (event) => event.stopPropagation());
+    toggleInput.addEventListener("change", () =>
+      setInstantLoginPreference(name, toggleInput.checked)
+    );
+    const toggleText = document.createElement("span");
+    toggleText.textContent = toggleInput.checked
+      ? "Instant login on"
+      : "Instant login off";
+    toggleLabel.appendChild(toggleInput);
+    toggleLabel.appendChild(toggleText);
+
+
+
+    controls.appendChild(instantBtn);
+    controls.appendChild(toggleLabel);
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.className = "recent-account-item__delete-btn";
+    deleteBtn.textContent = "Delete";
+    deleteBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteRecentAccount(name);
+    });
+    controls.appendChild(deleteBtn);
+
+    meta.appendChild(nameLabel);
+    meta.appendChild(banLine);
+    meta.appendChild(muteLine);
+    meta.appendChild(controls);
+
+    btn.appendChild(avatar);
+    btn.appendChild(meta);
+    btn.addEventListener("click", () => {
+      userInput.value = name;
+      userInput.focus();
+    });
+    hydrateAccountSummary(name, banLine, muteLine);
+    recentAccountsList.appendChild(btn);
+  });
+}
+
+function updateInstantButtonState(btn, entry) {
+  const enabled = entry.instant !== false && !!entry.password;
+  btn.disabled = !enabled;
+  btn.textContent = enabled ? t("instantLogin", "Instant Login") : t("instantUnavailable", "Instant Login Unavailable");
+}
+
+async function hydrateAccountSummary(name, banLine, muteLine) {
+  if (banLine) {
+    banLine.textContent = t("checkingBan", "Checking ban status...");
+    banLine.classList.remove("recent-account-item__status--danger");
+  }
+  if (muteLine) {
+    muteLine.textContent = "";
+    muteLine.classList.remove("recent-account-item__status--danger");
+  }
+  const summary = await fetchAccountSummary(name);
+  if (!summary) {
+    if (banLine) banLine.textContent = t("instantStatusUnavailable", "Status unavailable");
+    if (muteLine) muteLine.textContent = "";
+    return;
+  }
+  if (banLine) {
+    if (summary.banned) {
+      banLine.textContent = summary.banReason || t("banned", "Account banned.");
+      banLine.classList.add("recent-account-item__status--danger");
+    } else {
+      banLine.textContent = "";
+    }
+  }
+  if (muteLine) {
+    if (summary.muted && summary.mutedUntil) {
+      const untilText = formatMuteUntil(summary.mutedUntil);
+      muteLine.textContent = t("mutedUntil", "Muted until ") + untilText;
+      muteLine.classList.add("recent-account-item__status--danger");
+    } else if (summary.muted) {
+      muteLine.textContent = t("muted", "Muted");
+      muteLine.classList.add("recent-account-item__status--danger");
+    } else {
+      muteLine.textContent = "";
+    }
+  }
+}
+
+async function fetchAccountSummary(name) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return null;
+  if (accountSummaryCache.has(trimmed)) {
+    return accountSummaryCache.get(trimmed);
+  }
+  const promise = (async () => {
+    try {
+      const res = await fetch(
+        "/api/accountSummary?username=" + encodeURIComponent(trimmed)
+      );
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (err) {
+      console.warn("Failed to load account summary", err);
+      return null;
+    }
+  })();
+  accountSummaryCache.set(trimmed, promise);
+  return promise;
+}
+
+function formatMuteUntil(ts) {
+  if (!ts) return "";
+  const date = new Date(ts);
+  return date.toLocaleString();
+}
+
+if (clearRecentBtn) {
+  clearRecentBtn.addEventListener("click", () => {
+    clearRecentAccounts();
+    userInput.focus();
+  });
+}
+
+renderRecentAccounts();
+if (userInput) userInput.focus();
+applyAuthTranslations();
+
+function setStatus(msg, isError) {
+  statusBox.textContent = msg || "";
+  statusBox.className = "auth-status" + (isError ? " auth-status--error" : "");
+}
+
+async function doLogin() {
+  const username = userInput.value.trim();
+  const password = passInput.value;
+  const email = (emailInput.value || "").trim();
+  if (!username || !password || !email) {
+    setStatus(t("enterAll", "Enter username, email, and password"), true);
+    return;
+  }
+  if (!isValidEmail(email)) {
+    setStatus(t("enterValidEmail", "Enter a valid email"), true);
+    return;
+  }
+  localStorage.setItem("banUser", username);
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: username, password: password, email: email })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      if (res.status === 403 && data.reason) {
+        localStorage.setItem("banReason", data.reason);
+        localStorage.setItem("banUser", username);
+        localStorage.setItem("autoLoginUser", username);
+        localStorage.setItem("autoLoginPass", password);
+        window.location.href =
+          "/ban_info/?reason=" +
+          encodeURIComponent(data.reason) +
+          "&user=" +
+          encodeURIComponent(username);
+        return;
+      }
+      setStatus(data.error || t("loginFailed", "Login failed"), true);
+      return;
+    }
+    if (data.require2fa && data.challengeId) {
+      saveRecentAccount(username, password, email);
+      const pending = {
+        challengeId: data.challengeId,
+        username: username,
+        destination: data.destination || data.deliveryMethod || "",
+        expiresAt: data.expiresAt || 0,
+      };
+      localStorage.setItem("pending2fa", JSON.stringify(pending));
+      window.location.href = "/2fa/";
+      return;
+    }
+    saveRecentAccount(username, password, email);
+    localStorage.setItem("autoLoginUser", username);
+    localStorage.setItem("autoLoginPass", password);
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("username", data.username);
+    window.location.href = "/chat/";
+  } catch (e) {
+    setStatus("Network error", true);
+  }
+}
+
+async function doRegister() {
+  const username = userInput.value.trim();
+  const password = passInput.value;
+  const email = (emailInput.value || "").trim();
+  if (!username || !password || !email) {
+    setStatus(t("enterAll", "Enter username, email, and password"), true);
+    return;
+  }
+  if (!isValidEmail(email)) {
+    setStatus(t("enterValidEmail", "Enter a valid email"), true);
+    return;
+  }
+  localStorage.setItem("banUser", username);
+  try {
+    const res = await fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: username,
+        password: password,
+        email: email,
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      setStatus(data.error || t("registerFailed", "Registration failed"), true);
+      return;
+    }
+    setStatus(t("registered", "Registered! Sending login code..."));
+    setTimeout(doLogin, 800);
+  } catch (e) {
+    setStatus(t("networkError", "Network error"), true);
+  }
+}
+
+loginBtn.addEventListener("click", doLogin);
+registerBtn.addEventListener("click", doRegister);
+passInput.addEventListener("keydown", function (e) {
+  if (e.key === "Enter") doLogin();
+});
+</script>
+
+</body>
+</html>

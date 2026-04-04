@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Appeal</title>
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body class="auth-body">
+
+<div class="auth-root">
+  <div class="auth-card auth-card--wide">
+    <h1 class="auth-title">Ban Appeal</h1>
+    <p class="auth-text">
+      Use this form to contact the moderators if you believe your ban was a mistake.
+    </p>
+
+    <label class="auth-label" for="appealUser">Username</label>
+    <input id="appealUser"
+           class="input-box auth-input"
+          type="text"
+          placeholder="your username">
+
+    <label class="auth-label" for="appealText">Message</label>
+    <textarea id="appealText"
+              class="textarea-box auth-input"
+              placeholder="explain what happened..."
+              rows="6"></textarea>
+
+    <div class="auth-buttons">
+      <button class="btn btn--wide" id="sendAppealBtn">Send Appeal</button>
+      <button class="btn btn--wide btn--ghost" onclick="window.location.href='/'">Back</button>
+    </div>
+
+    <div id="status" class="auth-status"></div>
+  </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const stored = localStorage.getItem("username");
+  if (stored) {
+    document.getElementById("appealUser").value = stored;
+  }
+});
+
+async function submitAppeal() {
+  const username = document.getElementById("appealUser").value.trim();
+  const message = document.getElementById("appealText").value.trim();
+  const status = document.getElementById("status");
+
+  if (!username) {
+    status.textContent = "please enter your username...";
+    return;
+  }
+  if (!message) {
+    status.textContent = "please write a message...";
+    return;
+  }
+
+  const res = await fetch("/api/appealBan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, message })
+  });
+
+  if (res.ok) {
+    status.textContent = "appeal sent...";
+    document.getElementById("appealText").value = "";
+  } else {
+    status.textContent = "error sending appeal...";
+  }
+}
+
+document.getElementById("sendAppealBtn").onclick = submitAppeal;
+</script>
+
+</body>
+</html>

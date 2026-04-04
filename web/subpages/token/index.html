@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Token Iframe Receiver</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    /* Empty, transparent page */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      overflow: hidden;
+    }
+    #status {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      color: #e5e7eb;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 6px 8px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    }
+    #status.ok { color: #34d399; }
+    #status.err { color: #f97316; }
+  </style>
+</head>
+<body>
+  <div id="status">Idle</div>
+  <script>
+    const statusEl = document.getElementById("status");
+    function setStatus(text, cls) {
+      if (!statusEl) return;
+      statusEl.textContent = text || "";
+      statusEl.className = "";
+      if (cls) statusEl.classList.add(cls);
+    }
+    function maskToken(tok) {
+      if (typeof tok !== "string") return "";
+      if (tok.length <= 8) return tok;
+      return tok.slice(0, 4) + "..." + tok.slice(-4);
+    }
+    // Receives postMessages while embedded in an iframe.
+    // Expects { type: "validate-token", token: "<session token>" } and responds with same message shape as embed-login:
+    //   - success: { type: "chatLoginSuccess", payload: { token, username, requestToken } }
+    //   - failure/banned: { type: "chatLoginFailure", payload: { error, banned?: true, requestToken } }
+    async function handleValidateToken(data, origin, source) {
+      const correlationId =
+        (data && data.correlationId) ||
+        "cid-" + Math.random().toString(36).slice(2, 10);
+      if (!data.token) {
+        setStatus("Missing token in validate-token request.", "err");
+        return;
+      }
+      if (!source || typeof source.postMessage !== "function") {
+        setStatus("No valid message source to reply to.", "err");
+        return;
+      }
+
+      let response = {
+        type: "chatLoginFailure",
+        payload: { error: "Unknown", correlationId },
+      };
+      setStatus("Validating token...", "");
+      try {
+        const res = await fetch("/api/optional-login", {
+          headers: { Authorization: "Bearer " + data.token }
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 403) {
+          response = {
+            type: "chatLoginFailure",
+            payload: {
+              error: body.reason || "Account banned",
+              banned: true,
+              requestToken: data.token,
+              correlationId,
+            },
+          };
+          setStatus("Token banned: " + (body.reason || "Account banned"), "err");
+        } else if (!res.ok || !body.success) {
+          response = {
+            type: "chatLoginFailure",
+            payload: {
+              error: body.error || "Invalid token",
+              requestToken: data.token,
+              correlationId,
+            },
+          };
+          setStatus(response.payload.error || "Invalid token", "err");
+        } else if (!body.loggedIn) {
+          response = {
+            type: "chatLoginFailure",
+            payload: {
+              error: "Token not recognized or expired",
+              requestToken: data.token,
+              correlationId,
+            },
+          };
+          setStatus(response.payload.error, "err");
+        } else {
+          response = {
+            type: "chatLoginSuccess",
+            payload: {
+              token: data.token,
+              username: body.username || null,
+              requestToken: data.token,
+              correlationId,
+            },
+          };
+          setStatus(
+            "Valid token for " + (response.payload.username || "unknown"),
+            "ok"
+          );
+        }
+      } catch (err) {
+        response = {
+          type: "chatLoginFailure",
+          payload: { error: "Network error", requestToken: data.token, correlationId },
+        };
+        setStatus(response.payload.error, "err");
+      }
+
+      try {
+        const targetOrigin = origin || "*";
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(response, targetOrigin);
+        }
+        if (source && typeof source.postMessage === "function") {
+          source.postMessage(response, targetOrigin);
+        }
+        const outcome =
+          response.type === "chatLoginSuccess"
+            ? "ok(" + (response.payload.username || "unknown") + ")"
+            : "fail(" + (response.payload.error || "unknown") + ")";
+        console.log(
+          "[token-iframe] reply ->",
+          targetOrigin,
+          outcome,
+          "token:",
+          maskToken(
+            (response.payload && response.payload.requestToken) ||
+              (response.payload && response.payload.token)
+          )
+        );
+      } catch (_) {
+        // ignore postMessage failures
+      }
+    }
+
+    function handleSetStatus(data) {
+      const msg = String(data.text || "");
+      setStatus("[set-status] " + (msg || "No message"), data.ok ? "ok" : data.err ? "err" : "");
+    }
+
+    function handleGetApis(_data, origin, source) {
+      const apis = [
+        { method: "POST", path: "/api/login", note: "Body: {username,password,email}" },
+        { method: "POST", path: "/api/app/login/code", note: "Generate app login code (Bearer token)" },
+        { method: "POST", path: "/api/app/login/consume", note: "Body: {username,code} -> session token" },
+        { method: "GET", path: "/api/optional-login", note: "Bearer token optional; reports logged-in state" },
+        { method: "POST", path: "/api/df/levels", note: "Body: {name,content,tags?,description?,rating?}" },
+        { method: "GET", path: "/api/df/levels", note: "List recent levels" },
+        { method: "GET", path: "/api/df/levels/:id", note: "Fetch level with content" },
+        { method: "POST", path: "/api/df/levels/:id/rate", note: "Admins only; Body: {rating}" },
+      ];
+      const response = { type: "apiList", payload: { apis } };
+      const targetOrigin = origin || "*";
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(response, targetOrigin);
+        }
+        if (source && typeof source.postMessage === "function") {
+          source.postMessage(response, targetOrigin);
+        }
+        setStatus("Sent API list", "");
+      } catch (_) {
+        setStatus("Failed to send API list", "err");
+      }
+    }
+
+    async function handleUploadLevel(data, origin, source) {
+      const correlationId =
+        (data && data.correlationId) ||
+        "cid-" + Math.random().toString(36).slice(2, 10);
+      if (!data.name || !data.content) {
+        setStatus("Missing name/content for level upload.", "err");
+        return;
+      }
+      setStatus("Uploading level...", "");
+      let response = {
+        type: "dfLevelUploadFailure",
+        payload: { error: "Unknown", correlationId },
+      };
+      try {
+        const res = await fetch("/api/df/levels", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: data.name,
+            content: data.content,
+            tags: data.tags,
+            description: data.description,
+            rating: data.rating,
+          }),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success) {
+          response = {
+            type: "dfLevelUploadFailure",
+            payload: {
+              error: body.error || "Upload failed",
+              correlationId,
+            },
+          };
+          setStatus(response.payload.error || "Upload failed", "err");
+        } else {
+          response = {
+            type: "dfLevelUploadSuccess",
+            payload: {
+              id: body.id,
+              created: body.created,
+              correlationId,
+            },
+          };
+          setStatus(
+            "Level uploaded (id " + response.payload.id + ")",
+            "ok"
+          );
+        }
+      } catch (err) {
+        response = {
+          type: "dfLevelUploadFailure",
+          payload: { error: "Network error", correlationId },
+        };
+        setStatus(response.payload.error, "err");
+      }
+
+      try {
+        const targetOrigin = origin || "*";
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(response, targetOrigin);
+        }
+        if (source && typeof source.postMessage === "function") {
+          source.postMessage(response, targetOrigin);
+        }
+      } catch (_) {
+        // ignore postMessage failures
+      }
+    }
+
+    async function handleDownloadLevel(data, origin, source) {
+      const correlationId =
+        (data && data.correlationId) ||
+        "cid-" + Math.random().toString(36).slice(2, 10);
+      if (!data.id) {
+        setStatus("Missing level id for download.", "err");
+        return;
+      }
+      setStatus("Downloading level " + data.id + "...", "");
+      let response = {
+        type: "dfLevelDownloadFailure",
+        payload: { error: "Unknown", correlationId },
+      };
+      try {
+        const res = await fetch("/api/df/levels/" + encodeURIComponent(data.id));
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success || !body.level) {
+          response = {
+            type: "dfLevelDownloadFailure",
+            payload: { error: body.error || "Download failed", correlationId },
+          };
+          setStatus(response.payload.error || "Download failed", "err");
+        } else {
+          response = {
+            type: "dfLevelDownloadSuccess",
+            payload: {
+              level: body.level,
+              correlationId,
+            },
+          };
+          setStatus(
+            "Downloaded level " + (body.level.id || data.id),
+            "ok"
+          );
+        }
+      } catch (err) {
+        response = {
+          type: "dfLevelDownloadFailure",
+          payload: { error: "Network error", correlationId },
+        };
+        setStatus(response.payload.error, "err");
+      }
+
+      try {
+        const targetOrigin = origin || "*";
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(response, targetOrigin);
+        }
+        if (source && typeof source.postMessage === "function") {
+          source.postMessage(response, targetOrigin);
+        }
+      } catch (_) {
+        // ignore postMessage failures
+      }
+    }
+
+    async function handleMessage(event) {
+      let data = event.data || {};
+      // Strings: try to parse JSON; if that fails, just show them.
+      if (typeof data === "string") {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed && typeof parsed === "object") {
+            data = parsed;
+          } else {
+            setStatus("Received: " + data, "");
+            console.log("[token-iframe] string from", event.origin || "unknown", "->", data);
+            return;
+          }
+        } catch (_) {
+          setStatus("Received: " + data, "");
+          console.log("[token-iframe] string from", event.origin || "unknown", "->", data);
+          return;
+        }
+      }
+      console.log("[token-iframe] json from", event.origin || "unknown", "type:", data && data.type);
+      const origin = event.origin || "*";
+      const source = event.source;
+
+      const handlers = {
+        "set-status": handleSetStatus,
+        "validate-token": handleValidateToken,
+        "get-apis": handleGetApis,
+        "upload-level": handleUploadLevel,
+        "download-level": handleDownloadLevel,
+      };
+
+      const handler = handlers[data.type];
+      if (!handler) {
+        setStatus("Unhandled message type: " + (data.type || "unknown"), "");
+        return;
+      }
+      await handler(data, origin, source);
+    }
+
+    window.addEventListener("message", (event) => {
+      handleMessage(event);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Benno111 Chat – Mod Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body>
+
+<div class="mod-root">
+  <aside class="mod-sidebar" id="modSidebar">
+    <button class="mod-sidebar-toggle" id="modSidebarToggle">Hide Sidebar</button>
+    <div class="mod-sidebar-content">
+      <h2 class="mod-logo">MOD</h2>
+      <button class="mod-nav-btn" data-view="reports">Reports</button>
+      <button class="mod-nav-btn" data-view="appeals">Appeals</button>
+      <button class="mod-nav-btn" data-view="logs">Logs</button>
+      <button class="mod-nav-btn" data-view="commands">Commands</button>
+    </div>
+  </aside>
+
+  <main class="mod-main">
+    <header class="mod-header">
+      <div class="mod-header-left">
+        <span>Moderator Panel</span>
+      </div>
+      <div class="mod-header-right">
+        <span id="modUserLabel"></span>
+        <button id="modLogoutBtn" class="btn btn--tiny">Logout</button>
+      </div>
+    </header>
+
+    <section id="view-reports" class="mod-view mod-view--active">
+      <h3>Active Reports</h3>
+      <div id="reportsList" class="table-list"></div>
+    </section>
+
+    <section id="view-appeals" class="mod-view">
+      <h3>Ban Appeals</h3>
+      <div id="appealsList" class="table-list"></div>
+    </section>
+
+    <section id="view-logs" class="mod-view">
+      <h3>Recent Mod Logs</h3>
+      <div id="logsList" class="table-list"></div>
+    </section>
+
+    <section id="view-commands" class="mod-view">
+      <h3>Commands & Settings</h3>
+
+      <div class="mod-card">
+        <h4>Run Command</h4>
+        <p>Examples: <code>/ban user</code>, <code>/mute user 10</code>, <code>/shadowban user</code></p>
+        <input id="cmdInput" class="input-box" placeholder="/ban baduser">
+        <button id="cmdRunBtn" class="btn btn--wide">Run</button>
+        <div id="cmdStatus" class="auth-status"></div>
+      </div>
+
+      <div class="mod-card">
+        <h4>Toxicity Sensitivity</h4>
+        <p>Set your own moderation sensitivity (1=very tolerant, 10=very strict)</p>
+        <input id="toxSlider" type="range" min="1" max="10" value="5">
+        <span id="toxLabel">5</span>
+        <button id="toxSaveBtn" class="btn btn--small">Save</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+let token = localStorage.getItem("token");
+let username = localStorage.getItem("username");
+let modSidebarHidden = false;
+if (!token || !username) {
+  window.location.href = "/";
+}
+
+document.getElementById("modUserLabel").textContent = username;
+
+async function modLogout() {
+  const recentAccounts = localStorage.getItem("recentAccounts");
+  try {
+    await fetch("/api/logout", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+    });
+  } catch (_) {}
+  localStorage.clear();
+  if (recentAccounts !== null) {
+    localStorage.setItem("recentAccounts", recentAccounts);
+  }
+  window.location.href = "/";
+}
+
+document.getElementById("modLogoutBtn").addEventListener("click", function () {
+  modLogout();
+});
+
+const modRoot = document.querySelector(".mod-root");
+const modSidebarToggle = document.getElementById("modSidebarToggle");
+
+function setModSidebarHidden(hidden) {
+  modSidebarHidden = !!hidden;
+  if (modRoot) {
+    modRoot.classList.toggle("mod-root--sidebar-hidden", modSidebarHidden);
+  }
+  if (modSidebarToggle) {
+    modSidebarToggle.textContent = modSidebarHidden ? "Show" : "Hide Sidebar";
+    if (modSidebarHidden) {
+      modSidebarToggle.setAttribute("aria-expanded", "false");
+    } else {
+      modSidebarToggle.setAttribute("aria-expanded", "true");
+    }
+  }
+}
+
+if (modSidebarToggle) {
+  modSidebarToggle.addEventListener("click", function () {
+    setModSidebarHidden(!modSidebarHidden);
+  });
+  setModSidebarHidden(false);
+}
+
+/* NAV */
+const navButtons = document.querySelectorAll(".mod-nav-btn");
+const views = {
+  reports: document.getElementById("view-reports"),
+  appeals: document.getElementById("view-appeals"),
+  logs: document.getElementById("view-logs"),
+  commands: document.getElementById("view-commands")
+};
+
+navButtons.forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    const view = btn.getAttribute("data-view");
+    Object.keys(views).forEach(function (k) {
+      views[k].classList.remove("mod-view--active");
+    });
+    views[view].classList.add("mod-view--active");
+    if (view === "reports") refreshReports();
+    else if (view === "appeals") refreshAppeals();
+    else if (view === "logs") refreshLogs();
+  });
+});
+
+/* API HELPERS */
+async function apiGET(path) {
+  const res = await fetch(path, {
+    headers: { "Authorization": "Bearer " + token }
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+async function apiPOST(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body || {})
+  });
+  const data = await res.json().catch(function () { return {}; });
+  if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+  return data;
+}
+
+/* REPORTS */
+const reportsList = document.getElementById("reportsList");
+
+async function refreshReports() {
+  reportsList.innerHTML = "Loading...";
+  try {
+    const data = await apiGET("/api/reports");
+    if (!data.reports || !data.reports.length) {
+      reportsList.textContent = "No active reports.";
+      return;
+    }
+    reportsList.innerHTML = "";
+    data.reports.forEach(function (r) {
+      const card = document.createElement("div");
+      card.className = "table-row";
+      const header = document.createElement("div");
+      header.className = "table-row-header";
+      header.textContent = "#" + r.id + " from " + r.reporter + " about " + r.offender + " in " + r.channel;
+      const msg = document.createElement("div");
+      msg.className = "table-row-body";
+      const text = document.createElement("div");
+      text.textContent = r.messageText + " (Reason: " + r.reason + ")";
+      msg.appendChild(text);
+      if (r.attachmentId) {
+        const link = document.createElement("a");
+        link.href = "/download/" + r.attachmentId;
+        link.textContent = r.attachmentName
+          ? "Download: " + r.attachmentName
+          : "Download file";
+        link.target = "_blank";
+        link.rel = "noreferrer noopener";
+        msg.appendChild(link);
+      }
+      const actions = document.createElement("div");
+      actions.className = "table-row-actions";
+
+function makeCmdButton(label, cmd, banReasonText) {
+  const b = document.createElement("button");
+  b.className = "btn btn--tiny";
+  b.textContent = label;
+  b.addEventListener("click", function () {
+    if (cmd === "/ban") {
+      runAdminCommand(`${cmd} "${r.offender}"`, {
+        reason:
+          banReasonText ||
+          `Report by ${r.reporter || "unknown"}: ${r.reason || ""}`,
+      });
+          } else {
+            runAdminCommand(cmd + " " + r.offender);
+          }
+        });
+        return b;
+      }
+
+      actions.appendChild(
+        makeCmdButton(
+          "Ban",
+          "/ban",
+          r.reason ? `Report reason: Ban reason: ${r.reason}` : null
+        )
+      );
+      actions.appendChild(makeCmdButton("Mute10m", "/mute"));
+      actions.appendChild(makeCmdButton("Shadow", "/shadowban"));
+      if (r.attachmentId) {
+        const removeFileBtn = document.createElement("button");
+        removeFileBtn.className = "btn btn--tiny btn--danger";
+        removeFileBtn.textContent = "Remove File";
+        removeFileBtn.addEventListener("click", async function () {
+          removeFileBtn.disabled = true;
+          removeFileBtn.textContent = "Removing...";
+          try {
+            await apiPOST("/api/attachment/delete", { attachmentId: r.attachmentId });
+            removeFileBtn.textContent = "Removed";
+          } catch (e) {
+            removeFileBtn.textContent = "Failed";
+            removeFileBtn.disabled = false;
+          }
+        });
+        actions.appendChild(removeFileBtn);
+      }
+
+      const dismiss = document.createElement("button");
+      dismiss.className = "btn btn--tiny btn--ghost";
+      dismiss.textContent = "Dismiss";
+      dismiss.addEventListener("click", function () {
+        card.style.opacity = "0.4";
+      });
+
+      actions.appendChild(dismiss);
+
+      card.appendChild(header);
+      card.appendChild(msg);
+      card.appendChild(actions);
+      reportsList.appendChild(card);
+    });
+  } catch (e) {
+    reportsList.textContent = "Failed to load reports.";
+  }
+}
+
+/* APPEALS */
+const appealsList = document.getElementById("appealsList");
+
+async function refreshAppeals() {
+  appealsList.innerHTML = "Loading...";
+  try {
+    const data = await apiGET("/api/appeals");
+    if (!data.appeals || !data.appeals.length) {
+      appealsList.textContent = "No appeals.";
+      return;
+    }
+    appealsList.innerHTML = "";
+    data.appeals.forEach(function (a) {
+      const card = document.createElement("div");
+      card.className = "table-row";
+      const header = document.createElement("div");
+      header.className = "table-row-header";
+      header.textContent = "#" + a.id + " from " + a.username + " (" + a.status + ")";
+      const body = document.createElement("div");
+      body.className = "table-row-body";
+      body.textContent = a.message;
+      const actions = document.createElement("div");
+      actions.className = "table-row-actions";
+
+      const approve = document.createElement("button");
+      approve.className = "btn btn--tiny";
+      approve.textContent = "Approve";
+      approve.addEventListener("click", function () {
+        updateAppeal(a.id, "approved");
+      });
+
+      const reject = document.createElement("button");
+      reject.className = "btn btn--tiny btn--danger";
+      reject.textContent = "Reject";
+      reject.addEventListener("click", function () {
+        updateAppeal(a.id, "rejected");
+      });
+
+      const remove = document.createElement("button");
+      remove.className = "btn btn--tiny btn--ghost";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", function () {
+        deleteAppeal(a.id);
+      });
+
+      actions.appendChild(approve);
+      actions.appendChild(reject);
+      actions.appendChild(remove);
+
+      card.appendChild(header);
+      card.appendChild(body);
+      card.appendChild(actions);
+      appealsList.appendChild(card);
+    });
+  } catch (e) {
+    appealsList.textContent = "Failed to load appeals.";
+  }
+}
+
+async function updateAppeal(id, status) {
+  try {
+    await apiPOST("/api/appeals/update", { id: id, status: status });
+    refreshAppeals();
+  } catch (e) {
+    alert("Failed to update appeal: " + e.message);
+  }
+}
+
+async function deleteAppeal(id) {
+  if (!confirm("Delete appeal #" + id + "?")) return;
+  try {
+    await fetch("/api/appeals/" + id, {
+      method: "DELETE",
+      headers: {
+        "Authorization": "Bearer " + token,
+      },
+    }).then((res) => {
+      if (!res.ok) throw new Error("Request failed");
+    });
+    refreshAppeals();
+  } catch (e) {
+    alert("Failed to delete appeal: " + e.message);
+  }
+}
+
+/* LOGS */
+const logsList = document.getElementById("logsList");
+
+async function refreshLogs() {
+  logsList.innerHTML = "Loading...";
+  try {
+    const data = await apiGET("/api/modLogs");
+    if (!data.logs || !data.logs.length) {
+      logsList.textContent = "No logs.";
+      return;
+    }
+    logsList.innerHTML = "";
+    data.logs.forEach(function (l) {
+      const card = document.createElement("div");
+      card.className = "table-row";
+      const ts = new Date(l.ts || 0).toLocaleString();
+      const header = document.createElement("div");
+      header.className = "table-row-header";
+      header.textContent = "[" + ts + "] " + l.actor + " " + l.action + " " + (l.target || "");
+      const body = document.createElement("div");
+      body.className = "table-row-body";
+      body.textContent = l.details || "";
+      card.appendChild(header);
+      card.appendChild(body);
+      logsList.appendChild(card);
+    });
+  } catch (e) {
+    logsList.textContent = "Failed to load logs.";
+  }
+}
+
+/* COMMANDS & TOXICITY */
+const cmdInput = document.getElementById("cmdInput");
+const cmdRunBtn = document.getElementById("cmdRunBtn");
+const cmdStatus = document.getElementById("cmdStatus");
+
+async function runAdminCommand(cmd, options) {
+  try {
+    const payload = { command: cmd };
+    if (options && options.reason) payload.reason = options.reason;
+    const data = await apiPOST("/api/adminCommand", payload);
+    cmdStatus.textContent = "OK";
+    cmdStatus.className = "auth-status";
+    refreshLogs();
+  } catch (e) {
+    cmdStatus.textContent = "Error: " + e.message;
+    cmdStatus.className = "auth-status auth-status--error";
+  }
+}
+
+cmdRunBtn.addEventListener("click", function () {
+  const cmd = cmdInput.value.trim();
+  if (!cmd) return;
+  runAdminCommand(cmd);
+});
+
+const toxSlider = document.getElementById("toxSlider");
+const toxLabel = document.getElementById("toxLabel");
+const toxSaveBtn = document.getElementById("toxSaveBtn");
+
+toxSlider.addEventListener("input", function () {
+  toxLabel.textContent = toxSlider.value;
+});
+
+toxSaveBtn.addEventListener("click", async function () {
+  try {
+    await apiPOST("/api/setToxicity", { level: toxSlider.value });
+    alert("Toxicity updated");
+  } catch (e) {
+    alert("Failed: " + e.message);
+  }
+});
+
+/* WS FEED FOR LIVE REPORTS/APPEALS */
+function wsBase() {
+  const proto = (location.protocol === "https:") ? "wss" : "ws";
+  return proto + "://" + location.host;
+}
+
+let ws = new WebSocket(wsBase() + "/?token=" + encodeURIComponent(token) + "&channel=staff");
+
+ws.onmessage = function (event) {
+  let data;
+  try { data = JSON.parse(event.data); } catch (e) { return; }
+  if (data.type === "report") {
+    refreshReports();
+  } else if (data.type === "ban_appeal") {
+    refreshAppeals();
+  } else if (data.type === "appeal_update") {
+    refreshAppeals();
+    refreshLogs();
+  } else if (data.type === "appeal_delete") {
+    refreshAppeals();
+    refreshLogs();
+  }
+};
+
+ws.onclose = function () {
+  setTimeout(function () {
+    ws = new WebSocket(wsBase() + "/?token=" + encodeURIComponent(token) + "&channel=staff");
+  }, 3000);
+};
+
+/* initial loads */
+refreshReports();
+refreshAppeals();
+refreshLogs();
+</script>
+
+</body>
+</html>

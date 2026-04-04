@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Level Info</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #0b1220;
+      color: #e5e7eb;
+      font-family: Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .panel {
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .small { font-size: 12px; color: #9ca3af; }
+    .status { font-size: 12px; min-height: 16px; }
+    .status.err { color: #f97316; }
+    .status.ok { color: #34d399; }
+  </style>
+</head>
+<body>
+  <div class="panel">
+    <div class="row">
+      <h2 style="margin:0;">Level Info</h2>
+      <input id="idInput" class="input-box" type="number" placeholder="Level ID" style="width:140px;">
+      <button id="loadBtn" class="btn">Load</button>
+      <button id="copyIdBtn" class="btn btn--ghost">Copy ID</button>
+    </div>
+    <div id="status" class="status"></div>
+    <div id="meta" class="small"></div>
+    <div id="desc" class="small"></div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search || "");
+    const initialId = params.get("id") || params.get("level") || "";
+
+    const idInput = document.getElementById("idInput");
+    const loadBtn = document.getElementById("loadBtn");
+    const copyIdBtn = document.getElementById("copyIdBtn");
+    const statusEl = document.getElementById("status");
+    const metaEl = document.getElementById("meta");
+    const descEl = document.getElementById("desc");
+
+    function setStatus(msg, cls) {
+      statusEl.textContent = msg || "";
+      statusEl.className = "status";
+      if (cls) statusEl.classList.add(cls);
+    }
+
+    async function loadLevel(id) {
+      if (!id) {
+        setStatus("Enter a level id.", "err");
+        return;
+      }
+      setStatus("Loading level " + id + "...", "");
+      try {
+        const res = await fetch("/api/df/levels/" + encodeURIComponent(id));
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok || !body.success || !body.level) {
+          setStatus(body.error || "Level not found", "err");
+          metaEl.textContent = "";
+          descEl.textContent = "";
+          return;
+        }
+        const lvl = body.level;
+        metaEl.textContent = `${lvl.name || "Untitled"} (#${lvl.id}) — Rating: ${lvl.rating ?? 0} — Tags: ${lvl.tags || "none"} — Created: ${new Date(lvl.created || 0).toLocaleString()}`;
+        descEl.textContent = lvl.description || "";
+        setStatus("Loaded level " + lvl.id + ". Use the ID to paste in-game.", "ok");
+      } catch (_) {
+        setStatus("Network error", "err");
+      }
+    }
+
+    async function copyId() {
+      const id = idInput.value.trim();
+      if (!id) {
+        setStatus("No level id to copy.", "err");
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(id);
+        setStatus("Copied level ID " + id, "ok");
+      } catch (_) {
+        setStatus("Copy failed.", "err");
+      }
+    }
+
+    loadBtn.addEventListener("click", () => loadLevel(idInput.value.trim()));
+    idInput.addEventListener("keydown", (e) => { if (e.key === "Enter") loadLevel(idInput.value.trim()); });
+    copyIdBtn.addEventListener("click", copyId);
+
+    if (initialId) {
+      idInput.value = initialId;
+      loadLevel(initialId);
+    }
+  </script>
+</body>
+</html>

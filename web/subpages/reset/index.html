@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reset Password</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body class="auth-body">
+
+<div class="auth-root">
+  <div class="auth-card auth-card--wide">
+    <h1 class="auth-title">Password Reset</h1>
+    <p class="auth-text">
+      Enter your username and we'll email a reset link to the address on file. If you already have a reset token, enter it below to choose a new password.
+    </p>
+
+    <h4>Request Reset Email</h4>
+    <label class="auth-label" for="resetUser">Username</label>
+    <input id="resetUser" class="input-box auth-input" placeholder="your username">
+    <button id="requestBtn" class="btn btn--wide" type="button">Send Reset Email</button>
+    <div id="requestStatus" class="auth-status"></div>
+
+    <hr style="margin:14px 0;">
+
+    <h4>Set New Password</h4>
+    <label class="auth-label" for="tokenInput">Reset Token</label>
+    <input id="tokenInput" class="input-box auth-input" placeholder="paste token here">
+
+    <label class="auth-label" for="newPass">New Password</label>
+    <input id="newPass" type="password" class="input-box auth-input" placeholder="new password">
+
+    <label class="auth-label" for="confirmPass">Confirm New Password</label>
+    <input id="confirmPass" type="password" class="input-box auth-input" placeholder="confirm new password">
+
+    <button id="confirmBtn" class="btn btn--wide" type="button">Update Password</button>
+    <div id="confirmStatus" class="auth-status"></div>
+
+    <div class="auth-links">
+      <a href="/">Back to Login</a>
+    </div>
+  </div>
+</div>
+
+<script>
+const requestBtn = document.getElementById("requestBtn");
+const requestStatus = document.getElementById("requestStatus");
+const resetUser = document.getElementById("resetUser");
+const tokenInput = document.getElementById("tokenInput");
+const newPass = document.getElementById("newPass");
+const confirmPass = document.getElementById("confirmPass");
+const confirmBtn = document.getElementById("confirmBtn");
+const confirmStatus = document.getElementById("confirmStatus");
+
+const tokenFromUrl = new URLSearchParams(window.location.search).get("token") || "";
+if (tokenFromUrl) {
+  tokenInput.value = tokenFromUrl;
+}
+
+function setStatus(el, msg, isError) {
+  el.textContent = msg || "";
+  el.className = "auth-status" + (isError ? " auth-status--error" : "");
+}
+
+async function requestReset() {
+  const user = (resetUser.value || "").trim();
+  if (!user) {
+    setStatus(requestStatus, "Enter your username", true);
+    return;
+  }
+  requestBtn.disabled = true;
+  setStatus(requestStatus, "Sending reset email...");
+  try {
+    const res = await fetch("/api/password/reset/request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username: user })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Failed to request reset");
+    }
+    setStatus(requestStatus, "If that account has an email, a reset link was sent.");
+  } catch (err) {
+    setStatus(requestStatus, err.message || "Failed to request reset", true);
+  } finally {
+    requestBtn.disabled = false;
+  }
+}
+
+async function confirmReset() {
+  const token = (tokenInput.value || "").trim();
+  const pass = newPass.value;
+  const confirm = confirmPass.value;
+  if (!token) {
+    setStatus(confirmStatus, "Enter your reset token", true);
+    return;
+  }
+  if (!pass) {
+    setStatus(confirmStatus, "Enter a new password", true);
+    return;
+  }
+  if (pass !== confirm) {
+    setStatus(confirmStatus, "Passwords do not match", true);
+    return;
+  }
+  confirmBtn.disabled = true;
+  setStatus(confirmStatus, "Updating password...");
+  try {
+    const res = await fetch("/api/password/reset/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, newPassword: pass })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Reset failed");
+    }
+    setStatus(confirmStatus, "Password updated! You can log in now.");
+    newPass.value = "";
+    confirmPass.value = "";
+  } catch (err) {
+    setStatus(confirmStatus, err.message || "Reset failed", true);
+  } finally {
+    confirmBtn.disabled = false;
+  }
+}
+
+requestBtn.addEventListener("click", requestReset);
+confirmBtn.addEventListener("click", confirmReset);
+confirmPass.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") confirmReset();
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Two-Factor Verification</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="shortcut icon" href="/favicon.ico">
+</head>
+<body class="auth-body">
+
+<div class="auth-root">
+  <div class="auth-card">
+    <h1 class="auth-title">2-Step Verification</h1>
+    <p id="twofaDestination" class="center-text small-text"></p>
+
+    <label class="auth-label">Enter 6-digit code</label>
+    <input id="twofaCode" class="input-box auth-input" inputmode="numeric" maxlength="6" placeholder="123456">
+
+    <div class="auth-buttons">
+      <button id="verifyBtn" class="btn btn--wide">Verify</button>
+      <button id="backBtn" class="btn btn--wide btn--ghost" type="button">Back</button>
+    </div>
+
+    <div id="twofaStatus" class="auth-status"></div>
+  </div>
+</div>
+
+<script>
+const pendingRaw = localStorage.getItem("pending2fa");
+let pending = null;
+try {
+  pending = pendingRaw ? JSON.parse(pendingRaw) : null;
+} catch (_) {
+  pending = null;
+}
+if (!pending || !pending.challengeId) {
+  window.location.href = "/";
+}
+
+const codeInput = document.getElementById("twofaCode");
+const statusBox = document.getElementById("twofaStatus");
+const destination = document.getElementById("twofaDestination");
+const verifyBtn = document.getElementById("verifyBtn");
+const backBtn = document.getElementById("backBtn");
+
+if (destination) {
+  let msg = pending.destination
+    ? "We sent a code to " + pending.destination
+    : "Enter the code we sent.";
+  destination.textContent = msg;
+}
+
+function setStatus(msg, isError) {
+  statusBox.textContent = msg || "";
+  statusBox.className = "auth-status" + (isError ? " auth-status--error" : "");
+}
+
+async function verify() {
+  const code = codeInput.value.trim();
+  if (!code) {
+    setStatus("Enter the 2FA code", true);
+    return;
+  }
+  verifyBtn.disabled = true;
+  backBtn.disabled = true;
+  setStatus("Verifying...");
+  try {
+    const res = await fetch("/api/verify2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ challengeId: pending.challengeId, code })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !data.success) {
+      setStatus((data && data.error) || "Invalid code", true);
+      verifyBtn.disabled = false;
+      backBtn.disabled = false;
+      return;
+    }
+    localStorage.removeItem("pending2fa");
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("username", data.username || pending.username || "");
+    localStorage.setItem("banUser", data.username || pending.username || "");
+    window.location.href = "/chat/";
+  } catch (err) {
+    setStatus("Network error", true);
+    verifyBtn.disabled = false;
+    backBtn.disabled = false;
+  }
+}
+
+verifyBtn.addEventListener("click", verify);
+backBtn.addEventListener("click", () => {
+  localStorage.removeItem("pending2fa");
+  window.location.href = "/";
+});
+codeInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") verify();
+});
+codeInput.focus();
+</script>
+
+</body>
+</html>
