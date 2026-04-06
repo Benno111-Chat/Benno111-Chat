@@ -16,15 +16,16 @@ const app = express();
 const ROOT_DIR = path.resolve(__dirname, "..");
 const WEB_DIR = path.join(ROOT_DIR, "web");
 const SAVE_DIR = path.join(ROOT_DIR, "save");
+const SAVE_DATA_DIR = path.join(SAVE_DIR, "data");
 const CHAT_CONFIG_PATH = path.join(ROOT_DIR, "Chat.config");
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) || 3000 : 3000;
-const DB_FILE = path.join(SAVE_DIR, "chat.db");
-const DF_LEVELS_DIR = path.join(SAVE_DIR, "df", "levels");
+const DB_FILE = path.join(SAVE_DATA_DIR, "chat.db");
+const DF_LEVELS_DIR = path.join(SAVE_DATA_DIR, "df", "levels");
 const DF_LEVELS_DB_FILE = path.join(DF_LEVELS_DIR, "levels.db");
 const MOD_USERS = new Set(["admin", "Benno111"]);
 const FAVICON_PATH = path.join(WEB_DIR, "favicon.ico");
-const UPLOAD_DIR = path.join(SAVE_DIR, "uploads");
-const AVATAR_DIR = path.join(SAVE_DIR, "avatars");
+const UPLOAD_DIR = path.join(SAVE_DATA_DIR, "uploads");
+const AVATAR_DIR = path.join(SAVE_DATA_DIR, "avatars");
 
 const RATE_LIMIT_WINDOW_MS = 15 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
@@ -67,6 +68,37 @@ function loadChatConfig() {
 }
 
 const CHAT_CONFIG = loadChatConfig();
+
+function migrateLegacySaveEntry(legacyRelativePath) {
+  const legacyPath = path.join(SAVE_DIR, legacyRelativePath);
+  const nextPath = path.join(SAVE_DATA_DIR, legacyRelativePath);
+
+  if (!fs.existsSync(legacyPath) || fs.existsSync(nextPath)) return;
+
+  fs.mkdirSync(path.dirname(nextPath), { recursive: true });
+
+  try {
+    fs.renameSync(legacyPath, nextPath);
+    console.log(`Migrated save data: ${legacyRelativePath} -> data/${legacyRelativePath}`);
+  } catch (err) {
+    console.warn(`Failed to migrate save/${legacyRelativePath}:`, err);
+  }
+}
+
+function migrateLegacySaveData() {
+  fs.mkdirSync(SAVE_DIR, { recursive: true });
+  fs.mkdirSync(SAVE_DATA_DIR, { recursive: true });
+
+  [
+    "chat.db",
+    "chat.db-journal",
+    "df",
+    "uploads",
+    "avatars",
+    "private",
+    "faq",
+  ].forEach(migrateLegacySaveEntry);
+}
 
 function isValidEmail(email) {
   return typeof email === "string" && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
@@ -661,7 +693,8 @@ app.get("/api/linkPreview", async (req, res) => {
   }
 });
 
-fs.mkdirSync(SAVE_DIR, { recursive: true });
+migrateLegacySaveData();
+fs.mkdirSync(SAVE_DATA_DIR, { recursive: true });
 if (!fs.existsSync(AVATAR_DIR)) {
   fs.mkdirSync(AVATAR_DIR, { recursive: true });
 }
