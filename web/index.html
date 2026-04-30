@@ -653,7 +653,7 @@ async function doLogin() {
         localStorage.setItem("autoLoginUser", username);
         localStorage.setItem("autoLoginPass", password);
         window.location.href =
-          "/ban_info/?reason=" +
+          window.__BENNO111_RUNTIME__.appPath("/ban_info/") + "?reason=" +
           encodeURIComponent(data.reason) +
           "&user=" +
           encodeURIComponent(username);
@@ -671,7 +671,7 @@ async function doLogin() {
         expiresAt: data.expiresAt || 0,
       };
       localStorage.setItem("pending2fa", JSON.stringify(pending));
-      window.location.href = "/2fa/";
+      window.location.href = window.__BENNO111_RUNTIME__.appPath("/2fa/");
       return;
     }
     saveRecentAccount(username, password, email);
@@ -679,7 +679,7 @@ async function doLogin() {
     localStorage.setItem("autoLoginPass", password);
     localStorage.setItem("token", data.token);
     localStorage.setItem("username", data.username);
-    window.location.href = "/chat/";
+    window.location.href = window.__BENNO111_RUNTIME__.appPath("/chat/");
   } catch (e) {
     setStatus("Network error", true);
   }
