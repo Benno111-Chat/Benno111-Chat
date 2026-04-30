@@ -1,13 +1,29 @@
-name: Static site CI
+name: App CI
 
 on:
   pull_request:
     branches: [ "main" ]
 
 jobs:
-  validate-site-path:
+  build-and-validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Ensure web directory exists
-        run: test -d web
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build distributable (server + web)
+        run: SKIP_BUILD_INSTALL=true npm run build
+
+      - name: Verify build output
+        run: |
+          test -f dist/server/server.js
+          test -d dist/web
+          test -f web/.nojekyll
