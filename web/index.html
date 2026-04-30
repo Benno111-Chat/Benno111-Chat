@@ -6,8 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="style.css">
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="shortcut icon" href="favicon.ico">
+  <script src="runtime-config.js"></script>
 </head>
 <body class="auth-body">
 
@@ -652,7 +653,7 @@ async function doLogin() {
         localStorage.setItem("autoLoginUser", username);
         localStorage.setItem("autoLoginPass", password);
         window.location.href =
-          "/ban_info/?reason=" +
+          window.__BENNO111_RUNTIME__.appPath("/ban_info/") + "?reason=" +
           encodeURIComponent(data.reason) +
           "&user=" +
           encodeURIComponent(username);
@@ -670,7 +671,7 @@ async function doLogin() {
         expiresAt: data.expiresAt || 0,
       };
       localStorage.setItem("pending2fa", JSON.stringify(pending));
-      window.location.href = "/2fa/";
+      window.location.href = window.__BENNO111_RUNTIME__.appPath("/2fa/");
       return;
     }
     saveRecentAccount(username, password, email);
@@ -678,7 +679,7 @@ async function doLogin() {
     localStorage.setItem("autoLoginPass", password);
     localStorage.setItem("token", data.token);
     localStorage.setItem("username", data.username);
-    window.location.href = "/chat/";
+    window.location.href = window.__BENNO111_RUNTIME__.appPath("/chat/");
   } catch (e) {
     setStatus("Network error", true);
   }
